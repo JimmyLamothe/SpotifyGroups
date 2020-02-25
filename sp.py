@@ -33,7 +33,7 @@ def get_followed_items(page):
     return items
 
 def get_followed_page(sp = None, after=None):
-    print('getting followed page')
+    print('getting followed pagee')
     if not sp:
         return ValueError('No spotify instance')
     page = sp.current_user_followed_artists(limit=50, after=after)
@@ -44,42 +44,47 @@ def get_followed_after(page):
     after = page['artists']['cursors']['after']
     return after
 
-def get_artist_list(sp = None):
-    print('getting artist list')
+def get_full_artist_dicts(sp = None):
+    print('getting list of full artist dicts')
     if not sp:
         token = get_token(scope = 'user-follow-read')
         sp = get_instance(token)
-    artist_list = []
+    artist_dict_list = []
     print('getting first page')
     first_page = get_followed_page(sp = sp)
     after = get_followed_after(first_page)
-    artist_list.extend(get_followed_items(first_page))
+    artist_dict_list.extend(get_followed_items(first_page))
     while after:
         next_page = get_followed_page(sp = sp, after = after)
-        artist_list.extend(get_followed_items(next_page))
+        artist_dict_list.extend(get_followed_items(next_page))
         after = get_followed_after(next_page)
-    return artist_list
+    return artist_dict_list
 
-def format_artist_list(artist_list):
-    artist_dict = {}
-    for artist in artist_list:
+def get_simple_artist_dict(artist_dict_list):
+    simple_artist_dict = {}
+    for artist in artist_dict_list:
         name = artist['name']
         uri = artist['uri']
-        artist_dict[name] = uri
-    return artist_dict
+        genres = artist['genres']
+        simple_artist_dict[name] = {'uri' : uri,
+                             'genres' : genres}
+    return simple_artist_dict
 
-def get_related_artist_list(related_artist_dict):
-    print('getting related artist list')
+def get_followed_artist_list(simple_artist_dict):
     artist_list = []
-    for artist in related_artist_dict['artists']:
-        name = artist['name']
-        artist_list.append(name)
+    for artist_name in simple_artist_dict:
+        artist_list.append(artist_name)
     return artist_list
 
 def get_related_artists(uri, sp):
+    print('getting related artist list')
     artist_dict = sp.artist_related_artists(uri)
-    artist_list = get_related_artist_list(artist_dict)
-    return artist_list
+    simple_artist_dict = get_simple_artist_dict(artist_dict['artists'])
+    print('Continue')
+    related_artist_list = []
+    for key in simple_artist_dict:
+        related_artist_list.append(key)
+    return related_artist_list
 
 def simplify_related_artist_list(related_artist_list, followed_artists_list):
     simple_list = []
@@ -88,12 +93,13 @@ def simplify_related_artist_list(related_artist_list, followed_artists_list):
             simple_list.append(artist)
     return simple_list
 
-def create_related_artist_dict(artist_dict, sp):
+def create_related_artist_dict(simple_artist_dict, sp):
     related_artist_dict = {}
-    artist_list = [key for key in artist_dict]
-    for artist in artist_dict:
+    artist_list = [key for key in simple_artist_dict]
+    for artist in simple_artist_dict:
         print('Finding related artists for ' + artist)
-        related_list = get_related_artists(artist_dict[artist], sp = sp)
+        related_list = get_related_artists(simple_artist_dict[artist]['uri'], sp = sp)
+        print('related list : ', related_list)
         short_list = simplify_related_artist_list(related_list, artist_list)
         related_artist_dict[artist] = short_list
     return related_artist_dict
@@ -110,21 +116,29 @@ def create_related_artist_list(related_artist_dict, sorting_function = sorting_f
     related_artist_list.sort(key = sorting_function, reverse=True)  
     return related_artist_list
 
-def create_inverse_related_artist_list(related_dict):
+def create_inverse_related_artist_list(related_dict, sorting_function = sorting_functions[0]):
     inverse_dict = {}
     for artist in related_dict:
         inverse_dict[artist] = []
         for key in related_dict:
+            print(key)
+            print(related_dict[key])
             for related_artist in related_dict[key]:
                 if artist == related_artist:
                     inverse_dict[artist].append(key)
     if not len(inverse_dict) == len(related_dict):
         print('ERROR - Dict length not matched')
-    return inverse_dict
+    inverse_artist_list = [(artist, related_artists) for artist, related_artists
+                           in inverse_dict.items()]
+    inverse_artist_list.sort(key = sorting_function, reverse=True)
+    return inverse_artist_list
 
-def create_groups(related_dict):
+def create_groups(related_dict, inverse = False):
     groups = []
-    related_list = create_related_artist_list(related_dict)
+    if inverse:
+        related_list = create_inverse_related_artist_list(related_dict)
+    else:
+        related_list = create_related_artist_list(related_dict)
     reference_dict = related_dict.copy()
     for tuple in related_list:
         artist = tuple[0]
@@ -145,7 +159,7 @@ def create_groups(related_dict):
 def count_group(group_list):
     count = 0
     for group in group_list:
-        count += len(group_list)
+        count += len(group)
     return count
 
 def average_group(group_list):
@@ -153,11 +167,11 @@ def average_group(group_list):
     groups = len(group_list)
     return int(count/groups)
 
-def max_groups(group_list):
+def max_group(group_list):
     length_list = [len(group) for group in group_list]
     return max(length_list)
 
-def median_groups(group_list):
+def median_group(group_list):
     length_list = [len(group) for group in group_list]
     median_index = int(len(group_list)/2)
     return length_list[median_index]
@@ -232,3 +246,32 @@ def combine_all_groups(group_list, minimum_percentage):
     print('\n\n\n\n\n\n\n\n\n')
     print('combined list: ' + str(combined_list))
     return combined_list
+
+def get_sorted_genre_list(simple_artist_dict):
+    genre_list = []
+    count_list = []
+    for artist in simple_artist_dict:
+        for genre in simple_artist_dict[artist]['genres']:
+            if genre in genre_list:
+                index = genre_list.index(genre)
+                count_list[index] += 1
+            else:
+                genre_list.append(genre)
+                count_list.append(1)
+    tuple_list = list(zip(genre_list, count_list))
+    tuple_list.sort(key = lambda x : x[1], reverse = True)
+    sorted_genre_list = [item[0] for item in tuple_list]
+    return sorted_genre_list
+                          
+def create_groups_by_genre(simple_artist_dict):
+    genre_groups = {}
+    genre_list = get_sorted_genre_list(simple_artist_dict)
+    for artist in simple_artist_dict:
+        for genre in genre_list:
+            if genre in simple_artist_dict[artist]['genres']:
+                if not genre in genre_groups:
+                    genre_groups[genre] = []
+                genre_groups[genre].append(artist)
+                break
+    return genre_groups
+                
