@@ -80,7 +80,8 @@ class Player:
             time.sleep(track_time)
         for track_dict in track_list:
             play_track(track_dict)
-        play_next_album()
+        time.sleep(1)
+        self.play_next_album()
 
     def set_queue(self, track_list):
         self.process = multiprocessing.Process(target = self.queue_next_album,
@@ -88,11 +89,16 @@ class Player:
         self.process.start()
 
     def stop_queue(self):
-        if self.process:
-            self.process.terminate()
+        print(multiprocessing.active_children())
+        for process in multiprocessing.active_children():
+            process.terminate()
 
     def play_next_album(self):
+        print('Previous number of running processes: ' + 
+              str(len(multiprocessing.active_children())))
         self.stop_queue()
+        print('New number of running processes: ' + 
+              str(len(multiprocessing.active_children())))
         base_recs = self.get_current_recommendations()
         recs = self.process_recs(base_recs, followed = self.play_followed, new = self.play_new)
         next_artist = sp.get_random_artist(recs)
@@ -116,6 +122,19 @@ class Player:
               ' by ' + artist_name)
         album_time = sp.get_album_time(self.instance, album_uri)
         album = sp.get_album(album_uri)
+        track_list = sp.get_track_list(album)
+        self.instance.start_playback(context_uri = album_uri)
+        self.set_queue(track_list)
+        
+    def play_random_album(self):
+        self.stop_queue()
+        artist_uri = sp.get_random_followed_artist(self.simple_artist_dict)
+        next_album = sp.get_random_album(self.instance, artist_uri)
+        print('Now playing: ' + sp.get_name(next_album) +
+              ' by ' + sp.get_artist_name(next_album))
+        album_uri = sp.get_uri(next_album)
+        album_time = sp.get_album_time(self.instance, album_uri)
+        album = sp.get_album(self.instance, album_uri)
         track_list = sp.get_track_list(album)
         self.instance.start_playback(context_uri = album_uri)
         self.set_queue(track_list)

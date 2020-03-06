@@ -156,10 +156,19 @@ def get_random_artist(rec_list):
                 'artist_name' : artist_name}
     return new_dict
 
+def get_random_followed_artist(followed_dict):
+    artist = random.choice(list(followed_dict.keys()))
+    artist_uri = followed_dict[artist]['uri']
+    return artist_uri
+    
 def get_random_album(instance, artist_uri):
     albums = instance.artist_albums(artist_uri, limit=50)
     selection = random.choice(albums['items'])
     return simplify_album(selection)
+
+def get_random_album_uri(instance, artist_uri):
+    album = get_random_album(instance, artist_uri)
+    return album['uri']
 
 def get_album(instance, album_uri):
     return instance.album(album_uri)
