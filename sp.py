@@ -173,7 +173,8 @@ def get_artist_name(single_dict):
     artist_name = single_dict[list(single_dict.keys())[0]]['artist_name']
     return artist_name
 
-
+def get_id(uri):
+    return uri[uri.rindex(':')+1:]
 
 
 

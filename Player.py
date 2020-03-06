@@ -2,7 +2,8 @@ import sp
 
 class Player:
     def __init__(self):
-        scope = 'user-modify-playback-state user-read-currently-playing user-follow-read'
+        scope = 'user-modify-playback-state user-read-currently-playing '
+        scope += 'user-follow-read user-follow-modify'
         token = sp.get_token(scope)
         self.instance = sp.get_instance(token)
         followed_artist_dicts = sp.get_full_artist_dicts(instance = self.instance)
@@ -48,6 +49,31 @@ class Player:
         print('Now playing: ' + sp.get_name(next_album) +
               ' by ' + sp.get_artist_name(next_album))
         self.instance.start_playback(context_uri = sp.get_uri(next_album))
+
+    def play_current_album(self):
+        current_track = self.get_simple_current()
+        album_uri = current_track['album_uri']
+        album_name = current_track['album_name']
+        artist_name = current_track['artist_name']
+        print('Now playing: ' + album_name +
+              ' by ' + artist_name)
+        self.instance.start_playback(context_uri = album_uri)
+
+    def follow(self):
+        current_track = self.get_simple_current()
+        artist_name = current_track['artist_name']
+        artist_uri = current_track['artist_uri']
+        artist_id = sp.get_id(artist_uri)
+        print('Now following ' + artist_name + '.')
+        self.instance.user_follow_artists(ids=[artist_id])
+
+    def unfollow(self):
+        current_track = self.get_simple_current()
+        artist_name = current_track['artist_name']
+        artist_uri = current_track['artist_uri']
+        artist_id = sp.get_id(artist_uri)
+        print('Stopped following ' + artist_name + '.')
+        self.instance.user_unfollow_artists(ids=[artist_id])
 
     def __repr__(self):
         return str(self.__dict__)
