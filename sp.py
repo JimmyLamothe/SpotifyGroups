@@ -1,4 +1,4 @@
-import os, sys, json 
+import os, sys, json, random 
 import spotipy
 import spotipy.util as util
 import pprint as pp
@@ -32,11 +32,11 @@ def get_followed_items(page):
     items = page['artists']['items']
     return items
 
-def get_followed_page(sp = None, after=None):
+def get_followed_page(instance = None, after=None):
     print('getting followed pagee')
-    if not sp:
+    if not instance:
         return ValueError('No spotify instance')
-    page = sp.current_user_followed_artists(limit=50, after=after)
+    page = instance.current_user_followed_artists(limit=50, after=after)
     return page
 
 def get_followed_after(page):
@@ -44,30 +44,81 @@ def get_followed_after(page):
     after = page['artists']['cursors']['after']
     return after
 
-def get_full_artist_dicts(sp = None):
+def get_full_artist_dicts(instance = None):
     print('getting list of full artist dicts')
-    if not sp:
+    if not instance:
         token = get_token(scope = 'user-follow-read')
-        sp = get_instance(token)
+        instance = get_instance(token)
     artist_dict_list = []
     print('getting first page')
-    first_page = get_followed_page(sp = sp)
+    first_page = get_followed_page(instance = instance)
     after = get_followed_after(first_page)
     artist_dict_list.extend(get_followed_items(first_page))
     while after:
-        next_page = get_followed_page(sp = sp, after = after)
+        next_page = get_followed_page(instance = instance, after = after)
         artist_dict_list.extend(get_followed_items(next_page))
         after = get_followed_after(next_page)
     return artist_dict_list
 
-def get_simple_artist_dict(artist_dict_list):
+def simplify_artist(artist_dict, genres = False):
+    simple_dict = {}
+    name = artist_dict['name']
+    simple_dict[name] = {'uri' : artist_dict['uri']}
+    if genres:
+        simple_dict[name]['genres'] = artist_dict['genres']
+    return simple_dict
+
+def simplify_album(album_dict):
+    simple_dict = {}
+    name = album_dict['name']
+    uri = album_dict['uri']
+    artist_name = album_dict['artists'][0]['name']
+    artist_uri = album_dict['artists'][0]['uri']
+    type = album_dict['album_type']
+    simple_dict[name] = {'uri' : uri,
+                         'artist_name' : artist_name,
+                         'artist_uri' : artist_uri,
+                         'type' : type}
+    return simple_dict
+
+def simplify_track(track_dict):
+    simple_dict = {}
+    name = track_dict['name']
+    uri = track_dict['uri']
+    artist_name = track_dict['artists'][0]['name']
+    artist_uri = track_dict['artists'][0]['uri']
+    album_name = track_dict['album']['name']
+    album_uri = track_dict['album']['uri']
+    album_type = track_dict['album']['album_type']
+    simple_dict[name] = {'uri' : uri,
+                         'artist_name' : artist_name,
+                         'artist_uri' : artist_uri,
+                         'album_name' : album_name,
+                         'album_uri' : album_uri,
+                         'album_type' : album_type}
+    return simple_dict
+    
+def simplify_current(current_dict):
+    track = current_dict['item']
+    uri = track['uri']
+    name = track['name']
+    artist = track['artists'][0]
+    artist_name = artist['name']
+    artist_uri = artist['uri']
+    album = track['album']
+    album_name = album['name']
+    album_uri = album['uri']
+    return {'name' : name,
+            'uri' : uri,
+            'artist_name': artist_name,
+            'artist_uri' : artist_uri,
+            'album_name' : album_name,
+            'album_uri' : album_uri}
+
+def get_simple_artist_dict(artist_dict_list, genres = False):
     simple_artist_dict = {}
     for artist in artist_dict_list:
-        name = artist['name']
-        uri = artist['uri']
-        genres = artist['genres']
-        simple_artist_dict[name] = {'uri' : uri,
-                             'genres' : genres}
+        simple_artist_dict.update(simplify_artist(artist, genres = genres))
     return simple_artist_dict
 
 def get_followed_artist_list(simple_artist_dict):
@@ -76,9 +127,63 @@ def get_followed_artist_list(simple_artist_dict):
         artist_list.append(artist_name)
     return artist_list
 
-def get_related_artists(uri, sp):
+def get_recommendations(instance, track_uri, limit = 100):
+    recs = instance.recommendations(seed_tracks=[track_uri], limit = limit)
+    simple_recs = [simplify_track(track) for track in recs['tracks']]
+    return simple_recs
+
+def exclude_artist(simple_recs, artist_name):
+    other_recs = [rec for rec in simple_recs
+                  if not rec[list(rec.keys())[0]]['artist_name'] == artist_name]
+    return other_recs
+
+def get_followed_rec_list(rec_list, followed_artist_list):
+    followed_rec_list = [rec for rec in rec_list
+                         if rec[list(rec.keys())[0]]['artist_name'] in followed_artist_list]
+    return followed_rec_list
+
+def get_new_rec_list(rec_list, followed_artist_list):
+    new_rec_list = [rec for rec in rec_list
+                         if not rec[list(rec.keys())[0]]['artist_name'] in followed_artist_list]
+    return new_rec_list
+
+def get_random_artist(rec_list):
+    selection = random.choice(rec_list)
+    artist = selection[list(selection.keys())[0]]
+    artist_uri = artist['artist_uri']
+    artist_name = artist['artist_name']
+    new_dict = {'artist_uri' : artist_uri,
+                'artist_name' : artist_name}
+    return new_dict
+
+def get_random_album(instance, artist_uri):
+    albums = instance.artist_albums(artist_uri, limit=50)
+    selection = random.choice(albums['items'])
+    return simplify_album(selection)
+
+def get_uri(single_dict):
+    uri = single_dict[list(single_dict.keys())[0]]['uri']
+    return uri
+
+def get_name(single_dict):
+    name = list(single_dict.keys())[0]
+    return name
+
+def get_artist_name(single_dict):
+    artist_name = single_dict[list(single_dict.keys())[0]]['artist_name']
+    return artist_name
+
+
+
+
+
+
+
+
+
+def get_related_artists(uri, instance):
     print('getting related artist list')
-    artist_dict = sp.artist_related_artists(uri)
+    artist_dict = instance.artist_related_artists(uri)
     simple_artist_dict = get_simple_artist_dict(artist_dict['artists'])
     print('Continue')
     related_artist_list = []
@@ -93,12 +198,12 @@ def simplify_related_artist_list(related_artist_list, followed_artists_list):
             simple_list.append(artist)
     return simple_list
 
-def create_related_artist_dict(simple_artist_dict, sp):
+def create_related_artist_dict(simple_artist_dict, instance):
     related_artist_dict = {}
     artist_list = [key for key in simple_artist_dict]
     for artist in simple_artist_dict:
         print('Finding related artists for ' + artist)
-        related_list = get_related_artists(simple_artist_dict[artist]['uri'], sp = sp)
+        related_list = get_related_artists(simple_artist_dict[artist]['uri'], instance = instance)
         print('related list : ', related_list)
         short_list = simplify_related_artist_list(related_list, artist_list)
         related_artist_dict[artist] = short_list
