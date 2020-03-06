@@ -33,7 +33,7 @@ def get_followed_items(page):
     return items
 
 def get_followed_page(instance = None, after=None):
-    print('getting followed pagee')
+    print('getting followed page')
     if not instance:
         return ValueError('No spotify instance')
     page = instance.current_user_followed_artists(limit=50, after=after)
@@ -160,6 +160,12 @@ def get_random_album(instance, artist_uri):
     albums = instance.artist_albums(artist_uri, limit=50)
     selection = random.choice(albums['items'])
     return simplify_album(selection)
+
+def get_album(instance, album_uri):
+    return instance.album(album_uri)
+
+def get_track_list(album_dict):
+    return album_dict['tracks']['items']
 
 def get_uri(single_dict):
     uri = single_dict[list(single_dict.keys())[0]]['uri']

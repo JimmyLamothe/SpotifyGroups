@@ -43,7 +43,10 @@ class Player:
 
     def get_current_album(self):
         current = self.get_current_track()
-        
+        album_uri = current['item']['album']['uri']
+        album = sp.get_album(self.instance, album_uri)
+        return album
+
     def get_recommendations(self, track_uri):
         return sp.get_recommendations(self.instance, track_uri) 
 
@@ -67,13 +70,21 @@ class Player:
                 recs = new_recs
         return recs
 
-    def queue_next_album(self, delay_time):
-        print('Album time: ' + sp.seconds_to_minutes(delay_time))
-        time.sleep(delay_time)
+    def queue_next_album(self, track_list):
+        album_time = sp.get_total_track_time(track_list) / 1000
+        print('Album time: ' + sp.seconds_to_minutes(album_time))
+        def play_track(track_dict):
+            print('Current track: ' + track_dict['name'])
+            track_time = track_dict['duration_ms'] / 1000
+            print('Track time: ' + sp.seconds_to_minutes(track_time))
+            time.sleep(track_time)
+        for track_dict in track_list:
+            play_track(track_dict)
         play_next_album()
 
-    def set_queue(self, delay_time):
-        self.process = multiprocessing.Process(target = self.queue_next_album, args = (delay_time,))
+    def set_queue(self, track_list):
+        self.process = multiprocessing.Process(target = self.queue_next_album,
+                                               args = (track_list,))
         self.process.start()
 
     def stop_queue(self):
@@ -90,8 +101,10 @@ class Player:
               ' by ' + sp.get_artist_name(next_album))
         album_uri = sp.get_uri(next_album)
         album_time = sp.get_album_time(self.instance, album_uri)
+        album = sp.get_album(self.instance, album_uri)
+        track_list = sp.get_track_list(album)
         self.instance.start_playback(context_uri = album_uri)
-        self.set_queue(album_time)
+        self.set_queue(track_list)
         
     def play_current_album(self):
         self.stop_queue()
@@ -102,8 +115,10 @@ class Player:
         print('Now playing: ' + album_name +
               ' by ' + artist_name)
         album_time = sp.get_album_time(self.instance, album_uri)
+        album = sp.get_album(album_uri)
+        track_list = sp.get_track_list(album)
         self.instance.start_playback(context_uri = album_uri)
-        self.set_queue(album_time)
+        self.set_queue(track_list)
 
     def follow(self):
         current_track = self.get_simple_current()
