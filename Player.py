@@ -1,3 +1,4 @@
+import time, multiprocessing
 import sp
 
 class Player:
@@ -9,6 +10,28 @@ class Player:
         followed_artist_dicts = sp.get_full_artist_dicts(instance = self.instance)
         self.simple_artist_dict = sp.get_simple_artist_dict(followed_artist_dicts)
         self.artist_list = sp.get_followed_artist_list(self.simple_artist_dict)
+        self.play_followed = False
+        self.play_new = False
+        self.exclude_current = True
+        self.process = None
+
+    def play_followed(self):
+        self.play_followed = True
+        self.play_new = False
+
+    def play_new(self):
+        self.play_new = True
+        self.play_followed = False
+
+    def play_all(self):
+        self.play_followed = False
+        self.play_new = False
+
+    def include_current(self):
+        self.exclude_current = False
+
+    def exclude_current(self):
+        self.exclude_current = True
 
     def get_current_track(self):
         current = self.instance.currently_playing()
@@ -18,15 +41,18 @@ class Player:
         current = self.get_current_track()
         return sp.simplify_current(current)
 
+    def get_current_album(self):
+        current = self.get_current_track()
+        
     def get_recommendations(self, track_uri):
         return sp.get_recommendations(self.instance, track_uri) 
 
-    def get_current_recommendations(self, exclude_current_artist = True):
+    def get_current_recommendations(self):
         current = self.get_simple_current()
         track_uri = current['uri']
         artist_name = current['artist_name']
         recs = self.get_recommendations(track_uri)
-        if exclude_current_artist:
+        if self.exclude_current:
             recs = sp.exclude_artist(recs, artist_name)
         return recs
 
@@ -41,23 +67,43 @@ class Player:
                 recs = new_recs
         return recs
 
-    def play_next_album(self, followed = False, new = False): #Mutually exclusive
+    def queue_next_album(self, delay_time):
+        print('Album time: ' + sp.seconds_to_minutes(delay_time))
+        time.sleep(delay_time)
+        play_next_album()
+
+    def set_queue(self, delay_time):
+        self.process = multiprocessing.Process(target = self.queue_next_album, args = (delay_time,))
+        self.process.start()
+
+    def stop_queue(self):
+        if self.process:
+            self.process.terminate()
+
+    def play_next_album(self):
+        self.stop_queue()
         base_recs = self.get_current_recommendations()
-        recs = self.process_recs(base_recs, followed = followed, new = new)
+        recs = self.process_recs(base_recs, followed = self.play_followed, new = self.play_new)
         next_artist = sp.get_random_artist(recs)
         next_album = sp.get_random_album(self.instance, next_artist['artist_uri'])
         print('Now playing: ' + sp.get_name(next_album) +
               ' by ' + sp.get_artist_name(next_album))
-        self.instance.start_playback(context_uri = sp.get_uri(next_album))
-
+        album_uri = sp.get_uri(next_album)
+        album_time = sp.get_album_time(self.instance, album_uri)
+        self.instance.start_playback(context_uri = album_uri)
+        self.set_queue(album_time)
+        
     def play_current_album(self):
+        self.stop_queue()
         current_track = self.get_simple_current()
         album_uri = current_track['album_uri']
         album_name = current_track['album_name']
         artist_name = current_track['artist_name']
         print('Now playing: ' + album_name +
               ' by ' + artist_name)
+        album_time = sp.get_album_time(self.instance, album_uri)
         self.instance.start_playback(context_uri = album_uri)
+        self.set_queue(album_time)
 
     def follow(self):
         current_track = self.get_simple_current()

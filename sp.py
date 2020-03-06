@@ -1,4 +1,4 @@
-import os, sys, json, random 
+import os, sys, json, random
 import spotipy
 import spotipy.util as util
 import pprint as pp
@@ -175,6 +175,50 @@ def get_artist_name(single_dict):
 
 def get_id(uri):
     return uri[uri.rindex(':')+1:]
+
+def get_track_time(track_dict):
+    return track_dict['duration_ms']
+
+def get_total_track_time(track_list):
+    total_track_time = 0
+    for track in track_list:
+        track_time = int(get_track_time(track))
+        total_track_time += track_time
+    return total_track_time
+
+def get_album_time(instance, album_uri):
+    album = instance.album(album_uri)
+    album_ms = get_total_track_time(album['tracks']['items'])
+    album_secs = album_ms/1000
+    return album_secs
+
+def seconds_to_minutes(secs):
+    minutes = int(secs/60)
+    seconds = int(secs)%60
+    return str(minutes) + 'm' + str(seconds) + 's'
+
+def get_album_from_track(track_dict):
+    return track_dict['item']['album']['uri']
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
