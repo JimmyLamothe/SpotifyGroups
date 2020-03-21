@@ -213,10 +213,7 @@ def seconds_to_minutes(secs):
     return str(minutes) + 'm' + str(seconds) + 's'
 
 def get_album_from_track(track_dict):
-    return track_dict['item']['album']['uri']
-
-
-
+    return track_dict['item']['album']['uri']    
 
 
 
