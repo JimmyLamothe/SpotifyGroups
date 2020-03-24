@@ -1,4 +1,4 @@
-import time, multiprocessing
+import sys, time, multiprocessing
 import sp
 
 class Player:
@@ -77,29 +77,33 @@ class Player:
             print('Current track: ' + track_dict['name'])
             track_time = track_dict['duration_ms'] / 1000
             print('Track time: ' + sp.seconds_to_minutes(track_time))
+            sys.stdout.flush() # For autofront
             time.sleep(track_time)
         for track_dict in track_list[index:]:
             play_track(track_dict)
         time.sleep(1)
         self.play_next_album()
-        #return - Test if return makes a difference to running processes
-
+        return #Test if return makes a difference to running processes
+    
     def set_queue(self, track_list, index=0):
         self.process = multiprocessing.Process(target = self.queue_next_album,
                                                args = (track_list, index))
         self.process.start()
 
+    def mp_warning(self):
+        active_processes = multiprocessing.active_children()
+        if len(active_processes) > 2:
+            print('Warning: unusually high number of active processes')
+        if len(active_processes) > 10:
+            raise MemoryError('Critical failure: too many active processes, debugging necessary')
+
     def stop_queue(self):
-        print(multiprocessing.active_children())
         for process in multiprocessing.active_children():
             process.terminate()
+        self.mp_warning()
 
     def play_next_album(self):
-        print('Previous number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         self.stop_queue()
-        print('New number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         base_recs = self.get_current_recommendations()
         recs = self.process_recs(base_recs, followed = self.play_followed, new = self.play_new)
         next_artist = sp.get_random_artist(recs)
@@ -114,11 +118,7 @@ class Player:
         self.set_queue(track_list)
         
     def play_current_album(self):
-        print('Previous number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         self.stop_queue()
-        print('New number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         current_track = self.get_simple_current()
         album_uri = current_track['album_uri']
         album_name = current_track['album_name']
@@ -132,11 +132,7 @@ class Player:
         self.set_queue(track_list)
 
     def play_next_track(self):
-        print('Previous number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         self.stop_queue()
-        print('New number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         current_track = self.get_current_track()
         album = self.get_current_album()
         current_track_number = current_track['item']['track_number']
@@ -155,11 +151,7 @@ class Player:
         self.set_queue(track_list, index = next_index - 1)
 
     def play_previous_track(self):
-        print('Previous number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         self.stop_queue()
-        print('New number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         current_track = self.get_current_track()
         album = self.get_current_album()
         current_track_number = current_track['item']['track_number']
@@ -178,11 +170,7 @@ class Player:
         self.set_queue(track_list, index = next_index - 1)
 
     def show_current_track(self):
-        print('Previous number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         self.stop_queue()
-        print('New number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         current_track = self.get_simple_current()
         album_uri = current_track['album_uri']
         album_name = current_track['album_name']
@@ -192,11 +180,7 @@ class Player:
         print('Current track: ' + current_track['name'])    
 
     def play_random_album(self):
-        print('Previous number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         self.stop_queue()
-        print('New number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         artist_uri = sp.get_random_followed_artist(self.simple_artist_dict)
         next_album = sp.get_random_album(self.instance, artist_uri)
         print('Now playing: ' + sp.get_name(next_album) +
@@ -209,11 +193,7 @@ class Player:
         self.set_queue(track_list)
 
     def stop(self):
-        print('Previous number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         self.stop_queue()
-        print('New number of running processes: ' + 
-              str(len(multiprocessing.active_children())))
         self.instance.pause_playback()
 
     def follow(self):
